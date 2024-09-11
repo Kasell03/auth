@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum
-from pydantic import BaseModel, field_validator, model_validator, Field, conint
+from pydantic import BaseModel, ConfigDict, Field, conint
 
 
 class RoleEnum(Enum):
@@ -10,8 +10,7 @@ class RoleEnum(Enum):
 
 
 class FormAttribute(BaseModel):
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserJWT(FormAttribute):

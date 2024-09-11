@@ -1,19 +1,31 @@
+import asyncio
 from random import randint
+from typing import Coroutine, Callable, Any, Union
+
+from fastapi import HTTPException, status
 from fastapi_mail import MessageSchema, FastMail
 from src.config import settings
-from src.redis import set_value
 
 
 class Email:
     @staticmethod
-    async def send_activation_code(email_to: str):
+    async def send_activation_code(email_to: str,
+                                   get_redis_value: Callable[[str], Coroutine[Any, Any, Union[str, int, None]]],
+                                   set_redis_value: Callable[[str, Union[str, int], int], Coroutine[Any, Any, None]],
+                                   ):
+        is_code_set = await get_redis_value(email_to)
+        if is_code_set is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"msg": "Code hasn't expired yet"},
+            )
+
         random_code = randint(100000, 999999)
-        await set_value(key=email_to, value=random_code, ex_time=settings.ACTIVATION_EMAIL_CODE_LIFE_SEC)
+        await set_redis_value(email_to, random_code, settings.ACTIVATION_EMAIL_CODE_LIFE_SEC)
 
         body = f"""
             Activation code: {random_code}
         """
-
 
         message = MessageSchema(
             subject="Account activation",
@@ -26,5 +38,4 @@ class Email:
         fm = FastMail(settings.EMAIL_CONNECTION_CONFIG)
 
         await fm.send_message(message)
-
 

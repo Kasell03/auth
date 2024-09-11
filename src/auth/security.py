@@ -17,7 +17,7 @@ from src.auth import schemas
 
 
 def encode_jwt(user_data: schemas.UserJWT) -> str:
-    expire = datetime.datetime.utcnow() + settings.JWT_TOKEN_LIFE_TIME
+    expire = datetime.datetime.now(datetime.UTC) + settings.JWT_TOKEN_LIFE_TIME
     payload = {
         "id": user_data.id,
         "username": user_data.username,

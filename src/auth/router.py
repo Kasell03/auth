@@ -12,10 +12,12 @@ from src.auth import schemas
 from src.auth import security
 from .dependencies import SessionDep, TokenDep, AuthDep
 from .crud import UserCRUD
-from src.redis import get_value, set_value, del_value
+from src.cache_redis import CacheRedis
+from src.config import AUTH_REDIS_PORT, AUTH_REDIS_HOST
 
 
 user_router = APIRouter()
+cache_redis = CacheRedis()
 
 
 @user_router.get('/user')
@@ -31,7 +33,7 @@ async def get_user(session: SessionDep, token: TokenDep):
     #     print(i)
     # print(type(await get_category("auth")))
     # await set_value( "new_user2", 1114, 60)
-    await del_value("new_user2")
+    ...
 
     # print(await get_value("kadoskd"))
     # print(redis_app.get('auth'))
@@ -119,7 +121,7 @@ async def login_user(request_form: AuthDep, session: SessionDep):
 
     if users[0].is_confirmed is False:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail={"msg": "Account has not been activated"},
         )
 
@@ -167,11 +169,11 @@ async def send_activation_code(request_form: AuthDep, session: SessionDep):
 
     user_email = users[0].email
     user_email = "kasell92551@gmail.com"
-    await Email.send_activation_code(user_email)
+    await Email.send_activation_code(user_email, cache_redis.get_value, cache_redis.set_value)
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={"msg": "Code has been send"}
+        content={"msg": "Code has been sent"}
     )
 
 
@@ -189,8 +191,8 @@ async def activate_account(request: schemas.UserActivateSchema, session: Session
     user_email = "kasell92551@gmail.com"
 
     entered_code = request.code
-    given_code = await get_value(user_email)
-    if not given_code:
+    given_code = await cache_redis.get_value(user_email)
+    if given_code is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"msg": "Code has been expired"},
@@ -204,6 +206,7 @@ async def activate_account(request: schemas.UserActivateSchema, session: Session
 
     user_jwt_schema = await UserCRUD.activate_user(session, users[0])
     jwt_token = security.encode_jwt(user_data=user_jwt_schema)
+    await cache_redis.del_value(user_email)
 
     return schemas.Token(access_token=jwt_token, token_type="bearer")
 
