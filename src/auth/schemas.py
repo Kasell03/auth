@@ -4,20 +4,24 @@ from pydantic import BaseModel, ConfigDict, Field, conint
 
 
 class RoleEnum(Enum):
-    SUPERUSER = "SUPERUSER"
-    ADMIN = "ADMIN"
     USER = "USER"
+    ADMIN = "ADMIN"
+    SUPERUSER = "SUPERUSER"
 
 
 class FormAttribute(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class UserJWT(FormAttribute):
     id: int
     email: str
     username: str
-    role: str
+    role: RoleEnum
+
+
+class UserUpdate(UserJWT):
+    password: str
 
 
 class UserNoPasswordSchema(UserJWT):
@@ -45,12 +49,6 @@ class Token(FormAttribute):
     access_token: str
     token_type: str
 
-
-class UserDataJWT(FormAttribute):
-    id: int
-    username: str
-    email: str
-    role: RoleEnum
 
 class UserActivateSchema(LoginSchema):
     code: conint(gt=99999, lt=1000000)

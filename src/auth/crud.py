@@ -1,7 +1,7 @@
 from typing import Type
 
 from fastapi import HTTPException, status
-from sqlalchemy import text, select, insert, update, Result
+from sqlalchemy import text, select, insert, update, Result, delete
 from src.auth.models import UserModel
 from src.auth import schemas
 from .dependencies import SessionDep, TokenDep
@@ -51,8 +51,8 @@ class UserCRUD:
     @staticmethod
     async def get_user_by_field(
             session: SessionDep,
-            schema: Type[schemas.UserNoPasswordSchema] | Type[schemas.UserSchema] | Type[schemas.UserJWT],
-            **kwargs) -> list[schemas.UserNoPasswordSchema] | list[schemas.UserSchema] | list[schemas.UserJWT]:
+            schema: Type[schemas.UserNoPasswordSchema] | Type[schemas.UserSchema] | Type[schemas.UserJWT] | Type[schemas.UserUpdate],
+            **kwargs) -> list[schemas.UserNoPasswordSchema] | list[schemas.UserSchema] | list[schemas.UserJWT] | list[schemas.UserUpdate]:
         try:
             result = await session.execute(
                 select(UserModel)
@@ -92,4 +92,17 @@ class UserCRUD:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @staticmethod
+    async def delete_user(session: SessionDep, user_id: int):
+        result = await session.execute(delete(UserModel).filter_by(id=user_id))
+        if result.rowcount > 0:
+            await session.commit()
+            return
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"msg": "User is not found"}
+            )
+
 

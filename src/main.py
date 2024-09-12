@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from .auth.router import user_router, cache_redis
+from .auth.router import user_router, cache_redis, AUTH_ROUT_PREFIX
 from .cache_redis import CacheRedis
 from src.config import BASE_DIR, settings, AUTH_REDIS_PORT, AUTH_REDIS_HOST
 
@@ -20,6 +20,6 @@ def home():
     return 'Home page'
 
 
-app.include_router(user_router, prefix=f"{settings.API_PATH}/auth", tags=["Auth"])
+app.include_router(user_router, prefix=f"{settings.API_PATH}{AUTH_ROUT_PREFIX}", tags=["Auth"])
 
 

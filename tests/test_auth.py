@@ -1,6 +1,4 @@
-import enum
-import time
-from datetime import datetime
+from datetime import datetime, UTC
 
 import pytest
 from sqlalchemy import insert, select
@@ -12,22 +10,18 @@ from httpx import AsyncClient
 from conftest import client, async_session_maker
 from src.auth.models import UserModel
 from src.auth.schemas import UserSchema, UserJWT, UserActivateSchema
+from src.auth.router import AUTH_ROUT_PREFIX, AuthEndpoint
 
 
-class Urls(enum.Enum):
-    REGISTER="/auth/register"
-    LOGIN="/auth/login"
-    AUTHORIZE="/auth/authorize"
-    GET_CODE="/auth/get-code"
-    ACTIVATE_ACCOUNT="/auth/activate-account"
+AUTH_BASE_PATH = f"{settings.API_PATH}{AUTH_ROUT_PREFIX}"
 
 default_user = UserSchema(
     id=1,
     email="kasell92551@gmail.com",
     username="admin1",
     role="USER",
-    updated_at=datetime.now(),
-    created_at=datetime.now(),
+    updated_at=datetime.now(UTC),
+    created_at=datetime.now(UTC),
     password="password",
     is_confirmed=False,
 )
@@ -40,7 +34,7 @@ async def redis_delete_default_email():
 class ApiMethods:
     @staticmethod
     async def register_default_user(ac: AsyncClient):
-        return await ac.post(f"{settings.API_PATH}{Urls.REGISTER.value}", json={
+        return await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.REGISTER.value}", json={
             "email": default_user.email,
             "username": default_user.username,
             "password": str(default_user.password)
@@ -48,21 +42,21 @@ class ApiMethods:
 
     @staticmethod
     async def login_default_user(ac: AsyncClient):
-        return await ac.post(f"{settings.API_PATH}{Urls.LOGIN.value}", data={
+        return await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.LOGIN.value}", data={
             "username": default_user.username,
             "password": str(default_user.password)
         })
 
     @staticmethod
     async def get_activation_code(username: str, password: str, ac: AsyncClient):
-        return await ac.post(f"{settings.API_PATH}{Urls.GET_CODE.value}", data={
+        return await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.GET_CODE.value}", data={
             "username": username,
             "password": password
         })
 
     @staticmethod
     async def send_activation_code(user_data: UserActivateSchema, ac: AsyncClient):
-        return await ac.post(f"{settings.API_PATH}{Urls.ACTIVATE_ACCOUNT.value}", json={
+        return await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.ACTIVATE_ACCOUNT.value}", json={
             "username": user_data.username,
             "password": user_data.password,
             "code": user_data.code

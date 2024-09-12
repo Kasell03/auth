@@ -1,10 +1,9 @@
-from random import randint
-from typing import Annotated, NoReturn
-from fastapi import APIRouter, Depends, Request, Response, HTTPException, status
+import enum
+from typing import NoReturn
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 import os
 import sys
-from fastapi.security import OAuth2PasswordRequestForm
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from .email import Email
@@ -13,46 +12,20 @@ from src.auth import security
 from .dependencies import SessionDep, TokenDep, AuthDep
 from .crud import UserCRUD
 from src.cache_redis import CacheRedis
-from src.config import AUTH_REDIS_PORT, AUTH_REDIS_HOST
 
 
 user_router = APIRouter()
 cache_redis = CacheRedis()
 
-
-@user_router.get('/user')
-async def get_user(session: SessionDep, token: TokenDep):
-    # res = await security.verify_jwt(token=token)
-    # validate(role=schemas.RoleEnum.ADMIN)
-    # return res
-    # try:
-    # user = await UserCRUD.get_user_by_field(session=session, username="admin")
-    # print(user)
-    # print('----')
-    # for i in user:
-    #     print(i)
-    # print(type(await get_category("auth")))
-    # await set_value( "new_user2", 1114, 60)
-    ...
-
-    # print(await get_value("kadoskd"))
-    # print(redis_app.get('auth'))
-    #     # print(AuthHash.decode_jwt(token))
-    #     query = select(UserModel)
-    #     result = await session.execute(query)
-    #     # jwt.exceptions.ExpiredSignatureError # Истекло время
-    #     # jwt.exceptions.InvalidSignatureError # Некорректная хэш сума
-    #
-    #     # В ГИТЕ ПРИМЕР В ФАЙЛЕ deps.py
-    #
-    #
-    #     # users = users_dict_from_ORM(result, schemas.UserSchema)
-    #     users = result.scalars().all()
-    #
-    #     return users
-    #     # return result
-    # except Exception as ex:
-    #     return JSONResponse(status_code=409, content={'err': 'er'})
+AUTH_ROUT_PREFIX = "/auth"
+class AuthEndpoint(enum.Enum):
+    REGISTER="/register"
+    LOGIN="/login"
+    AUTHORIZE="/authorize"
+    GET_CODE="/get-code"
+    ACTIVATE_ACCOUNT="/activate-account"
+    USER="/user"
+    SELF="/self"
 
 
 async def check_user(request_form: AuthDep, session: SessionDep) -> list[schemas.UserSchema] | NoReturn:
@@ -79,7 +52,7 @@ async def check_user(request_form: AuthDep, session: SessionDep) -> list[schemas
     return users
 
 
-@user_router.post('/register')
+@user_router.post(AuthEndpoint.REGISTER.value)
 async def register_user(request: schemas.RegisterSchema, session: SessionDep):
     user_by_email = await UserCRUD.get_user_by_field(session, schemas.UserNoPasswordSchema, email=request.email)
     user_by_username = await UserCRUD.get_user_by_field(session, schemas.UserNoPasswordSchema, username=request.username)
@@ -115,7 +88,7 @@ async def register_user(request: schemas.RegisterSchema, session: SessionDep):
     )
 
 
-@user_router.post('/login')
+@user_router.post(AuthEndpoint.LOGIN.value)
 async def login_user(request_form: AuthDep, session: SessionDep):
     users = await check_user(request_form, session)
 
@@ -130,7 +103,7 @@ async def login_user(request_form: AuthDep, session: SessionDep):
     return schemas.Token(access_token=jwt_token, token_type="bearer")
 
 
-@user_router.post('/authorize')
+@user_router.post(AuthEndpoint.AUTHORIZE.value)
 async def validate_token(token: TokenDep, session: SessionDep):
     not_valid_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -157,7 +130,7 @@ async def validate_token(token: TokenDep, session: SessionDep):
         raise not_valid_exception
 
 
-@user_router.post('/get-code')
+@user_router.post(AuthEndpoint.GET_CODE.value)
 async def send_activation_code(request_form: AuthDep, session: SessionDep):
     users = await check_user(request_form, session)
 
@@ -177,7 +150,7 @@ async def send_activation_code(request_form: AuthDep, session: SessionDep):
     )
 
 
-@user_router.post('/activate-account')
+@user_router.post(AuthEndpoint.ACTIVATE_ACCOUNT.value)
 async def activate_account(request: schemas.UserActivateSchema, session: SessionDep):
     users = await check_user(request, session)
 
@@ -211,8 +184,29 @@ async def activate_account(request: schemas.UserActivateSchema, session: Session
     return schemas.Token(access_token=jwt_token, token_type="bearer")
 
 
+@user_router.get(AuthEndpoint.USER.value + "/{user_id}")
+async def user_get(user_id: int, session: SessionDep, role: security.UserRoleDep):
+    return await UserCRUD.get_user_by_field(session, schemas.UserJWT, id=user_id)
+
+
+@user_router.put(AuthEndpoint.USER.value)
+async def user_update(request: schemas.UserUpdate, session: SessionDep, role: security.UserRoleDep):
+    # Либо создать новую схему, которую будет принимать запрос
+    # Либо выбрать из существующих схем
+    pass
+
+
+@user_router.delete(AuthEndpoint.USER.value + "/{user_id}")
+async def user_delete(user_id: int, session: SessionDep, role: security.UserRoleDep):
+    await UserCRUD.delete_user(session=session, user_id=user_id)
+
+    return JSONResponse(
+        status_code=200,
+        content={"msg": "User has been deleted"}
+    )
+
+
 # @user_router.get('Получить всех пользователей(с пагинацией)')
-# @user_router.get('Получить конкретного пользователя)')
 # @user_router.put('Обновить конкретного пользователя)')
 # @user_router.delete('Удалить конкретного пользователя)')
 # @user_router.get('Получить себя')

@@ -12,7 +12,7 @@ intpk = Annotated[int, mapped_column(primary_key=True)]
 created_at = Annotated[datetime.datetime, mapped_column(server_default=text("TIMEZONE('utc', now())"))]
 updated_at = Annotated[datetime.datetime, mapped_column(
     server_default=text("TIMEZONE('utc', now())"),
-    onupdate=datetime.datetime.utcnow
+    onupdate=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 )]
 
 
