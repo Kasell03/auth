@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     ACTIVATION_EMAIL_CODE_LIFE_SEC: int = 120
     ALGORITHM: str = HASH_ALGORITHM
     EMAIL_CONNECTION_CONFIG: ConnectionConfig = EMAIL_CONNECTION_CONFIG
-    JWT_TOKEN_LIFE_TIME: datetime.timedelta = datetime.timedelta(minutes=10)
+    JWT_TOKEN_LIFE_TIME: datetime.timedelta = datetime.timedelta(days=7)
     SECRET: str = SECRET_KEY
 
 

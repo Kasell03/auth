@@ -13,18 +13,18 @@ class FormAttribute(BaseModel):
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
-class UserJWT(FormAttribute):
+class UserJWTSchema(FormAttribute):
     id: int
-    email: str
-    username: str
+    email: str = Field(min_length=8, max_length=64)
+    username: str = Field(min_length=4, max_length=16)
     role: RoleEnum
 
 
-class UserUpdate(UserJWT):
+class UserUpdateSchema(UserJWTSchema):
     password: str
 
 
-class UserNoPasswordSchema(UserJWT):
+class UserNoPasswordSchema(UserJWTSchema):
     updated_at: datetime.datetime
     created_at: datetime.datetime
 

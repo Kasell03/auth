@@ -115,7 +115,7 @@ async def validate_token(token: TokenDep, session: SessionDep):
     decoded = security.decode_jwt(token=token)
 
     if decoded:
-        current_user = await UserCRUD.get_user_by_field(session, schemas.UserJWT, id=decoded.id)
+        current_user = await UserCRUD.get_user_by_field(session, schemas.UserJWTSchema, id=decoded.id)
 
         if current_user[0] == decoded:
             return JSONResponse(
@@ -186,14 +186,17 @@ async def activate_account(request: schemas.UserActivateSchema, session: Session
 
 @user_router.get(AuthEndpoint.USER.value + "/{user_id}")
 async def user_get(user_id: int, session: SessionDep, role: security.UserRoleDep):
-    return await UserCRUD.get_user_by_field(session, schemas.UserJWT, id=user_id)
+    return await UserCRUD.get_user_by_field(session, schemas.UserJWTSchema, id=user_id)
 
 
 @user_router.put(AuthEndpoint.USER.value)
-async def user_update(request: schemas.UserUpdate, session: SessionDep, role: security.UserRoleDep):
-    # Либо создать новую схему, которую будет принимать запрос
-    # Либо выбрать из существующих схем
-    pass
+async def user_update(user_data: schemas.UserUpdateSchema, session: SessionDep, role: security.UserRoleDep):
+    await UserCRUD.update_user(session, user_data=user_data)
+
+    return JSONResponse(
+        status_code=200,
+        content={"msg": "User has been updated"}
+    )
 
 
 @user_router.delete(AuthEndpoint.USER.value + "/{user_id}")

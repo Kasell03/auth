@@ -9,7 +9,7 @@ from httpx import AsyncClient
 
 from conftest import client, async_session_maker
 from src.auth.models import UserModel
-from src.auth.schemas import UserSchema, UserJWT, UserActivateSchema
+from src.auth.schemas import UserSchema, UserJWTSchema, UserActivateSchema
 from src.auth.router import AUTH_ROUT_PREFIX, AuthEndpoint
 
 
