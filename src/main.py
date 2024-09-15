@@ -20,6 +20,6 @@ def home():
     return 'Home page'
 
 
-app.include_router(user_router, prefix=f"{settings.API_PATH}{AUTH_ROUT_PREFIX}", tags=["Auth"])
+app.include_router(user_router, prefix=f"{settings.api_path}{AUTH_ROUT_PREFIX}", tags=["Auth"])
 
 

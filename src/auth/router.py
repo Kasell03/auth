@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 import os
 import sys
 
+from starlette.status import HTTP_200_OK
+
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from .email import Email
 from src.auth import schemas
@@ -21,7 +23,7 @@ AUTH_ROUT_PREFIX = "/auth"
 class AuthEndpoint(enum.Enum):
     REGISTER="/register"
     LOGIN="/login"
-    AUTHORIZE="/authorize"
+    VERIFY_JWT= "/verify_jwt"
     GET_CODE="/get-code"
     ACTIVATE_ACCOUNT="/activate-account"
     USER="/user"
@@ -50,6 +52,22 @@ async def check_user(request_form: AuthDep, session: SessionDep) -> list[schemas
             raise not_valid_credentials
 
     return users
+
+
+@user_router.get("/abc")
+async def foo_for_test():
+    print(security.encode_jwt(schemas.UserJWTSchema(
+        id=1,
+        email="admin1@gmail.com",
+        username="admin1",
+        role="ADMIN",
+
+    )))
+
+    return JSONResponse(
+        status_code=HTTP_200_OK,
+        content={"": ""}
+    )
 
 
 @user_router.post(AuthEndpoint.REGISTER.value)
@@ -103,10 +121,10 @@ async def login_user(request_form: AuthDep, session: SessionDep):
     return schemas.Token(access_token=jwt_token, token_type="bearer")
 
 
-@user_router.post(AuthEndpoint.AUTHORIZE.value)
-async def validate_token(token: TokenDep, session: SessionDep):
+@user_router.post(AuthEndpoint.VERIFY_JWT.value)
+async def verify_jwt(token: TokenDep, session: SessionDep):
     not_valid_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "msg": "Invalid token"
             }

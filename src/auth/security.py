@@ -16,7 +16,7 @@ from src.auth.dependencies import TokenDep
 
 
 def encode_jwt(user_data: schemas.UserJWTSchema) -> str:
-    expire = datetime.datetime.now(datetime.UTC) + settings.JWT_TOKEN_LIFE_TIME
+    expire = datetime.datetime.now(datetime.UTC) + settings.jwt_token_life_time
     payload = {
         "id": user_data.id,
         "username": user_data.username,
@@ -25,15 +25,15 @@ def encode_jwt(user_data: schemas.UserJWTSchema) -> str:
     }
     payload.update({"exp": expire})
 
-    return jwt.encode(payload=payload, key=settings.SECRET, algorithm=settings.ALGORITHM)
+    return jwt.encode(payload=payload, key=settings.auth_jwt.private_key_path.read_text(), algorithm=settings.algorithm)
 
 
 def decode_jwt(token: str) -> Union[schemas.UserJWTSchema, False]:
     try:
-        decoded = jwt.decode(token, settings.SECRET, algorithms=[settings.ALGORITHM])
+        decoded = jwt.decode(jwt=token, key=settings.auth_jwt.public_key_path.read_text(), algorithms=[settings.algorithm])
         return schemas.UserJWTSchema.model_validate(decoded)
 
-    except (InvalidSignatureError, ExpiredSignatureError):
+    except (InvalidSignatureError, ExpiredSignatureError, DecodeError):
         return False
 
 

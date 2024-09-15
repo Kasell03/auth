@@ -13,7 +13,7 @@ from src.auth.schemas import UserSchema, UserJWTSchema, UserActivateSchema
 from src.auth.router import AUTH_ROUT_PREFIX, AuthEndpoint
 
 
-AUTH_BASE_PATH = f"{settings.API_PATH}{AUTH_ROUT_PREFIX}"
+AUTH_BASE_PATH = f"{settings.api_path}{AUTH_ROUT_PREFIX}"
 
 default_user = UserSchema(
     id=1,
@@ -161,3 +161,17 @@ class TestLogin:
         user_is_activated_response = await ApiMethods.send_activation_code(user_data=user_data, ac=ac)
         assert user_is_activated_response.status_code == 409
         assert user_is_activated_response.json() == {"detail": {"msg": "Account is active"}}
+
+    async def test_validate_token(self, ac: AsyncClient):
+        login_response = await ApiMethods.login_default_user(ac)
+        headers = {
+            "Authorization": f"Bearer {login_response.json()["access_token"]}"
+        }
+
+        validate_token_response = await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.VERIFY_JWT.value}",
+                                                headers=headers)
+
+        assert validate_token_response.status_code == 200
+        assert validate_token_response.json() == {'msg': 'Token is valid'}
+
+

@@ -1,4 +1,5 @@
 import datetime
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -30,7 +31,6 @@ MAIL_PORT = os.environ.get("MAIL_PORT")
 MAIL_SERVER = os.environ.get("MAIL_SERVER")
 MAIL_FROM_NAME = os.environ.get("MAIL_FROM_NAME")
 
-SECRET_KEY = os.environ.get("SECRET_KEY")
 HASH_ALGORITHM = os.environ.get("ALGORITHM")
 
 AUTH_REDIS_HOST = os.environ.get("AUTH_REDIS_HOST")
@@ -38,7 +38,7 @@ AUTH_REDIS_PORT = os.environ.get("AUTH_REDIS_PORT")
 TEST_AUTH_REDIS_HOST = os.environ.get("TEST_AUTH_REDIS_HOST")
 TEST_AUTH_REDIS_PORT = os.environ.get("TEST_AUTH_REDIS_PORT")
 
-EMAIL_CONNECTION_CONFIG = ConnectionConfig(
+email_connection_config = ConnectionConfig(
                 MAIL_USERNAME=MAIL_USERNAME,
                 MAIL_PASSWORD=MAIL_PASSWORD,
                 MAIL_FROM=MAIL_FROM,
@@ -50,13 +50,19 @@ EMAIL_CONNECTION_CONFIG = ConnectionConfig(
                 USE_CREDENTIALS=True,
             )
 
+class AuthJWT(BaseSettings):
+    private_key_path: Path = BASE_DIR + "/certs/jwt-private.pem"
+    public_key_path: Path = BASE_DIR + "/certs/jwt-public.pem"
+    alogorithm: str = "RS256"
+
+
 class Settings(BaseSettings):
-    API_PATH: str = "/api/v1"
-    ACTIVATION_EMAIL_CODE_LIFE_SEC: int = 120
-    ALGORITHM: str = HASH_ALGORITHM
-    EMAIL_CONNECTION_CONFIG: ConnectionConfig = EMAIL_CONNECTION_CONFIG
-    JWT_TOKEN_LIFE_TIME: datetime.timedelta = datetime.timedelta(days=7)
-    SECRET: str = SECRET_KEY
+    api_path: str = "/api/v1"
+    activation_email_code_life_sec: int = 120
+    algorithm: str = HASH_ALGORITHM
+    email_connection_config: ConnectionConfig = email_connection_config
+    jwt_token_life_time: datetime.timedelta = datetime.timedelta(days=7)
+    auth_jwt: AuthJWT = AuthJWT()
 
 
 

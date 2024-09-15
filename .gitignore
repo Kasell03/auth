@@ -3,3 +3,4 @@ __cache__/
 .idea/
 venv/
 __pycache__/
+certs/

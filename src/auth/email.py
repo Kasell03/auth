@@ -21,7 +21,7 @@ class Email:
             )
 
         random_code = randint(100000, 999999)
-        await set_redis_value(email_to, random_code, settings.ACTIVATION_EMAIL_CODE_LIFE_SEC)
+        await set_redis_value(email_to, random_code, settings.activation_email_code_life_sec)
 
         body = f"""
             Activation code: {random_code}
@@ -35,7 +35,7 @@ class Email:
             subtype='html',
         )
 
-        fm = FastMail(settings.EMAIL_CONNECTION_CONFIG)
+        fm = FastMail(settings.email_connection_config)
 
         await fm.send_message(message)
 
