@@ -3,19 +3,19 @@ from datetime import datetime, UTC
 import pytest
 from sqlalchemy import insert, select
 
-from src.auth.router import cache_redis
+from src.auth.router import cache_redis, refresh_access_token
 from src.config import settings
 from httpx import AsyncClient
 
 from conftest import client, async_session_maker
 from src.auth.models import UserModel
-from src.auth.schemas import UserSchema, UserJWTSchema, UserActivateSchema
+from src.auth.schemas import UserWithPasswordSchema, UserJWTSchema, UserActivateSchema
 from src.auth.router import AUTH_ROUT_PREFIX, AuthEndpoint
 
 
 AUTH_BASE_PATH = f"{settings.api_path}{AUTH_ROUT_PREFIX}"
 
-default_user = UserSchema(
+default_user = UserWithPasswordSchema(
     id=1,
     email="kasell92551@gmail.com",
     username="admin1",
@@ -41,10 +41,10 @@ class ApiMethods:
         })
 
     @staticmethod
-    async def login_default_user(ac: AsyncClient):
+    async def login_user(username: str, password: str, ac: AsyncClient):
         return await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.LOGIN.value}", data={
-            "username": default_user.username,
-            "password": str(default_user.password)
+            "username": username,
+            "password": password
         })
 
     @staticmethod
@@ -75,7 +75,7 @@ class TestRegistration:
                 )
             )
 
-            added_user = UserSchema.model_validate(user_instance.scalars().one())
+            added_user = UserWithPasswordSchema.model_validate(user_instance.scalars().one())
 
         assert added_user.id == default_user.id
         assert added_user.username == default_user.username
@@ -92,7 +92,7 @@ class TestRegistration:
 
 class TestLogin:
     async def test_login_unactivated_user(self, ac: AsyncClient):
-        response = await ApiMethods.login_default_user(ac)
+        response = await ApiMethods.login_user(default_user.username, str(default_user.password), ac)
         assert response.status_code == 403
         assert response.json() == {"detail": {"msg": 'Account has not been activated'}}
 
@@ -157,21 +157,29 @@ class TestLogin:
         assert activation_response.status_code == 200
         assert activation_response.json()["token_type"] == "bearer"
         assert isinstance(activation_response.json()["access_token"], str)
+        assert isinstance(activation_response.json()["refresh_token"], str)
 
         user_is_activated_response = await ApiMethods.send_activation_code(user_data=user_data, ac=ac)
         assert user_is_activated_response.status_code == 409
         assert user_is_activated_response.json() == {"detail": {"msg": "Account is active"}}
 
-    async def test_validate_token(self, ac: AsyncClient):
-        login_response = await ApiMethods.login_default_user(ac)
-        headers = {
-            "Authorization": f"Bearer {login_response.json()["access_token"]}"
-        }
+    async def test_refresh_jwt(self, ac: AsyncClient):
+        login_res = await ApiMethods.login_user(default_user.username, str(default_user.password), ac)
+        res_refresh_token = login_res.json()['refresh_token']
+        res_access_token = login_res.json()['access_token']
 
-        validate_token_response = await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.VERIFY_JWT.value}",
-                                                headers=headers)
+        assert login_res.status_code == 200
 
-        assert validate_token_response.status_code == 200
-        assert validate_token_response.json() == {'msg': 'Token is valid'}
+        refresh_fail_res = await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.REFRESH_ACCESS.value}", headers={
+            "Authorization": f"Bearer {res_access_token}"
+        })
 
+        assert refresh_fail_res.status_code == 400
+        assert refresh_fail_res.json() == {"detail": {"msg": f"expected type 'refresh' got 'access' instead"}}
 
+        refresh_success_res = await ac.post(f"{AUTH_BASE_PATH}{AuthEndpoint.REFRESH_ACCESS.value}", headers={
+            "Authorization": f"Bearer {res_refresh_token}"
+        })
+
+        assert refresh_success_res.status_code == 200
+        assert isinstance(refresh_success_res.json()["access_token"], str)

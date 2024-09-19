@@ -1,5 +1,7 @@
 import datetime
 from enum import Enum
+from typing import Annotated, Optional
+
 from pydantic import BaseModel, ConfigDict, Field, conint
 
 
@@ -13,14 +15,20 @@ class FormAttribute(BaseModel):
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
-class UserJWTSchema(FormAttribute):
+class UserBaseSchema(FormAttribute):
     id: int
     email: str = Field(min_length=8, max_length=64)
     username: str = Field(min_length=4, max_length=16)
+
+class UserJWTSchema(UserBaseSchema):
     role: RoleEnum
 
 
 class UserUpdateSchema(UserJWTSchema):
+    password: str
+
+
+class UserMeUpdateSchema(UserBaseSchema):
     password: str
 
 
@@ -29,9 +37,12 @@ class UserNoPasswordSchema(UserJWTSchema):
     created_at: datetime.datetime
 
 
-class UserSchema(UserNoPasswordSchema):
-    password: bytes
+class UserWithConfirmSchema(UserNoPasswordSchema):
     is_confirmed: bool
+
+
+class UserWithPasswordSchema(UserWithConfirmSchema):
+    password: bytes
 
 
 class RegisterSchema(FormAttribute):
@@ -46,8 +57,9 @@ class LoginSchema(FormAttribute):
 
 
 class Token(FormAttribute):
-    access_token: str
     token_type: str
+    access_token: str
+    refresh_token: str | None = None
 
 
 class UserActivateSchema(LoginSchema):

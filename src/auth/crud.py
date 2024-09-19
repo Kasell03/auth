@@ -1,7 +1,7 @@
 from typing import Type, NoReturn
 
 from fastapi import HTTPException, status
-from sqlalchemy import text, select, insert, update, Result, delete, or_, and_
+from sqlalchemy import text, select, insert, update, Result, delete, or_, and_, asc, desc
 from starlette.responses import JSONResponse
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
@@ -49,61 +49,48 @@ class UserCRUD:
             session: SessionDep,
             user_data: schemas.RegisterSchema
     ) -> schemas.UserNoPasswordSchema:
-        try:
-            hashed_password = security.hash_password(user_data.password)
+        hashed_password = security.hash_password(user_data.password)
 
-            query = (
-                insert(UserModel)
-                .values(
-                    username=user_data.username,
-                    email=user_data.email,
-                    password=hashed_password,
-                )
-                .returning(
-                    UserModel.id,
-                    UserModel.username,
-                    UserModel.email,
-                    UserModel.role,
-                    UserModel.created_at,
-                    UserModel.updated_at,
-
-                )
+        query = (
+            insert(UserModel)
+            .values(
+                username=user_data.username,
+                email=user_data.email,
+                password=hashed_password,
             )
+            .returning(
+                UserModel.id,
+                UserModel.username,
+                UserModel.email,
+                UserModel.role,
+                UserModel.created_at,
+                UserModel.updated_at,
 
-            result = await session.execute(query)
-            result = result.fetchone()
-
-            await session.commit()
-
-            return schemas.UserNoPasswordSchema.model_validate(result)
-        except Exception as ex:
-            print(ex)
-            print("crud.py/insert_user()")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        )
+
+        result = await session.execute(query)
+        result = result.fetchone()
+
+        await session.commit()
+
+        return schemas.UserNoPasswordSchema.model_validate(result)
 
     @staticmethod
     async def get_user_by_field(
             session: SessionDep,
-            schema: Type[schemas.UserNoPasswordSchema] | Type[schemas.UserSchema] | Type[schemas.UserJWTSchema] | Type[schemas.UserUpdateSchema],
-            **kwargs) -> list[schemas.UserNoPasswordSchema] | list[schemas.UserSchema] | list[schemas.UserJWTSchema] | list[schemas.UserUpdateSchema]:
-        try:
-            result = await session.execute(
-                select(UserModel)
-                .filter_by(**kwargs)
-            )
+            schema: Type[schemas.UserNoPasswordSchema] | Type[schemas.UserWithPasswordSchema] | Type[schemas.UserJWTSchema] | Type[schemas.UserUpdateSchema] | Type[schemas.UserBaseSchema],
+            **kwargs) -> list[schemas.UserNoPasswordSchema] | list[schemas.UserWithPasswordSchema] | list[schemas.UserJWTSchema] | list[schemas.UserUpdateSchema] | list[schemas.UserBaseSchema]:
+        result = await session.execute(
+            select(UserModel)
+            .filter_by(**kwargs)
+        )
 
-            return list(map(lambda r: schema.model_validate(r), result.scalars().all()))
-        except Exception as ex:
-            print("crud.py/get_user_by_field()")
-            print(ex)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        return list(map(lambda r: schema.model_validate(r), result.scalars().all()))
+
 
     @staticmethod
-    async def activate_user(session: SessionDep, schema: schemas.UserSchema) -> schemas.UserJWTSchema:
+    async def activate_user(session: SessionDep, schema: schemas.UserWithPasswordSchema) -> schemas.UserJWTSchema:
         try:
             result = await session.execute(
                 update(UserModel)
@@ -129,7 +116,7 @@ class UserCRUD:
             )
 
     @staticmethod
-    async def update_user(session: SessionDep, user_data: schemas.UserUpdateSchema):
+    async def update_user(session: SessionDep, user_data: schemas.UserUpdateSchema | schemas.UserMeUpdateSchema):
         user_instance = await UserCRUD.get_user_by_field(session, schemas.UserUpdateSchema, id=user_data.id)
         if len(user_instance) == 0:
             raise HTTPException(
@@ -138,16 +125,22 @@ class UserCRUD:
             )
 
         user_password = str(user_instance[0].password).encode()
+        user_role = user_instance[0].role
+
         await is_email_or_username_inuse(user_data.id, user_data.username, user_data.email, session)
+
         if user_data.password != "None":
             user_password = security.hash_password(user_data.password)
+
+        if user_data.model_fields.get("role"):
+           user_role = user_data.role
 
         await session.execute(
             update(UserModel)
             .values(
                 username=user_data.username,
                 email=user_data.email,
-                role=user_data.role,
+                role=user_role,
                 password=user_password,
             )
             .filter_by(id=user_data.id)
@@ -166,5 +159,20 @@ class UserCRUD:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"msg": "User has not been found"}
             )
+
+    @staticmethod
+    async def get_user_limited(session: SessionDep, offset: int, limit: int):
+        qry = (
+            select(UserModel)
+            .order_by(
+                UserModel.id.asc()
+            )
+            .offset(offset * limit)
+            .limit(limit)
+        )
+        result = await session.execute(qry)
+
+        return [schemas.UserWithConfirmSchema.model_validate(u) for u in result.scalars().all()]
+
 
 

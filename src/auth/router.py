@@ -1,10 +1,12 @@
 import enum
-from typing import NoReturn
-from fastapi import APIRouter, HTTPException, status
+import time
+from typing import NoReturn, Annotated
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 import os
 import sys
 
+from pydantic import conint
 from starlette.status import HTTP_200_OK
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
@@ -23,21 +25,21 @@ AUTH_ROUT_PREFIX = "/auth"
 class AuthEndpoint(enum.Enum):
     REGISTER="/register"
     LOGIN="/login"
-    VERIFY_JWT= "/verify_jwt"
+    REFRESH_ACCESS="/refresh-access"
     GET_CODE="/get-code"
     ACTIVATE_ACCOUNT="/activate-account"
     USER="/user"
-    SELF="/self"
+    ME="/me"
 
 
-async def check_user(request_form: AuthDep, session: SessionDep) -> list[schemas.UserSchema] | NoReturn:
+async def check_user(request_form: AuthDep, session: SessionDep) -> list[schemas.UserWithPasswordSchema] | NoReturn:
     not_valid_credentials = HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail={"msg": "Incorrect username or password"},
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    users = await UserCRUD.get_user_by_field(session, schemas.UserSchema, username=request_form.username)
+    users = await UserCRUD.get_user_by_field(session, schemas.UserWithPasswordSchema, username=request_form.username)
 
     if len(users) == 0:
         raise not_valid_credentials
@@ -52,22 +54,6 @@ async def check_user(request_form: AuthDep, session: SessionDep) -> list[schemas
             raise not_valid_credentials
 
     return users
-
-
-@user_router.get("/abc")
-async def foo_for_test():
-    print(security.encode_jwt(schemas.UserJWTSchema(
-        id=1,
-        email="admin1@gmail.com",
-        username="admin1",
-        role="ADMIN",
-
-    )))
-
-    return JSONResponse(
-        status_code=HTTP_200_OK,
-        content={"": ""}
-    )
 
 
 @user_router.post(AuthEndpoint.REGISTER.value)
@@ -89,7 +75,7 @@ async def register_user(request: schemas.RegisterSchema, session: SessionDep):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    result = await UserCRUD.insert_user(
+    await UserCRUD.insert_user(
         session=session,
         user_data=schemas.RegisterSchema(
             username=request.username,
@@ -97,9 +83,6 @@ async def register_user(request: schemas.RegisterSchema, session: SessionDep):
             password=request.password
         ))
 
-    jwt_token = security.encode_jwt(user_data=result)
-
-    # return schemas.Token(access_token=jwt_token, token_type="bearer")
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content={"msg": "Account has been created"}
@@ -116,37 +99,12 @@ async def login_user(request_form: AuthDep, session: SessionDep):
             detail={"msg": "Account has not been activated"},
         )
 
-    jwt_token = security.encode_jwt(user_data=users[0])
-
-    return schemas.Token(access_token=jwt_token, token_type="bearer")
+    return security.create_jwt(user_data=users[0])
 
 
-@user_router.post(AuthEndpoint.VERIFY_JWT.value)
-async def verify_jwt(token: TokenDep, session: SessionDep):
-    not_valid_exception = HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "msg": "Invalid token"
-            }
-        )
-
-    decoded = security.decode_jwt(token=token)
-
-    if decoded:
-        current_user = await UserCRUD.get_user_by_field(session, schemas.UserJWTSchema, id=decoded.id)
-
-        if current_user[0] == decoded:
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={
-                    "msg": "Token is valid"
-                }
-            )
-        else:
-            raise not_valid_exception
-    else:
-        raise not_valid_exception
-
+@user_router.post(AuthEndpoint.REFRESH_ACCESS.value)
+async def refresh_access_token(refresh_token = Depends(security.refresh_access_jwt)):
+    return refresh_token
 
 @user_router.post(AuthEndpoint.GET_CODE.value)
 async def send_activation_code(request_form: AuthDep, session: SessionDep):
@@ -196,19 +154,19 @@ async def activate_account(request: schemas.UserActivateSchema, session: Session
         )
 
     user_jwt_schema = await UserCRUD.activate_user(session, users[0])
-    jwt_token = security.encode_jwt(user_data=user_jwt_schema)
+    refresh_and_access_jwt = security.create_jwt(user_data=user_jwt_schema)
     await cache_redis.del_value(user_email)
 
-    return schemas.Token(access_token=jwt_token, token_type="bearer")
+    return refresh_and_access_jwt
 
 
 @user_router.get(AuthEndpoint.USER.value + "/{user_id}")
-async def user_get(user_id: int, session: SessionDep, role: security.UserRoleDep):
-    return await UserCRUD.get_user_by_field(session, schemas.UserJWTSchema, id=user_id)
-
+async def user_get_by_id(user_id: int, session: SessionDep, role_dep: security.AdminRoleDep) -> schemas.UserJWTSchema:
+    user_instance = await UserCRUD.get_user_by_field(session, schemas.UserJWTSchema, id=user_id)
+    return user_instance[0]
 
 @user_router.put(AuthEndpoint.USER.value)
-async def user_update(user_data: schemas.UserUpdateSchema, session: SessionDep, role: security.UserRoleDep):
+async def user_update(user_data: schemas.UserUpdateSchema, session: SessionDep, role_dep: security.AdminRoleDep):
     await UserCRUD.update_user(session, user_data=user_data)
 
     return JSONResponse(
@@ -216,9 +174,8 @@ async def user_update(user_data: schemas.UserUpdateSchema, session: SessionDep, 
         content={"msg": "User has been updated"}
     )
 
-
 @user_router.delete(AuthEndpoint.USER.value + "/{user_id}")
-async def user_delete(user_id: int, session: SessionDep, role: security.UserRoleDep):
+async def user_delete(user_id: int, session: SessionDep, role_dep: security.AdminRoleDep):
     await UserCRUD.delete_user(session=session, user_id=user_id)
 
     return JSONResponse(
@@ -226,9 +183,21 @@ async def user_delete(user_id: int, session: SessionDep, role: security.UserRole
         content={"msg": "User has been deleted"}
     )
 
+@user_router.get(AuthEndpoint.USER.value)
+async def user_get_users(role_dep: security.AdminRoleDep, session: SessionDep, offset: conint(gt=0) = 1):
+    return await UserCRUD.get_user_limited(session, offset=offset - 1, limit=10)
 
-# @user_router.get('Получить всех пользователей(с пагинацией)')
-# @user_router.put('Обновить конкретного пользователя)')
-# @user_router.delete('Удалить конкретного пользователя)')
-# @user_router.get('Получить себя')
-# @user_router.put('Обновить себя')
+@user_router.get(AuthEndpoint.ME.value)
+async def user_get_me(role_dep: security.UserRoleDep, session: SessionDep) -> schemas.UserBaseSchema:
+    user_instance = await UserCRUD.get_user_by_field(session, schemas.UserBaseSchema, id=role_dep.id)
+    return user_instance[0]
+
+@user_router.put(AuthEndpoint.ME.value)
+async def user_update_me(user_data: schemas.UserMeUpdateSchema, session: SessionDep, role_dep: security.UserRoleDep):
+    user_data.id = role_dep.id
+    await UserCRUD.update_user(session, user_data=user_data)
+
+    return JSONResponse(
+        status_code=200,
+        content={"msg": "User has been updated"}
+    )

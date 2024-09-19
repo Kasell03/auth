@@ -53,15 +53,15 @@ email_connection_config = ConnectionConfig(
 class AuthJWT(BaseSettings):
     private_key_path: Path = BASE_DIR + "/certs/jwt-private.pem"
     public_key_path: Path = BASE_DIR + "/certs/jwt-public.pem"
-    alogorithm: str = "RS256"
+    algorithm: str = HASH_ALGORITHM
+    access_token_life_time: datetime.timedelta = datetime.timedelta(minutes=15)
+    refresh_token_life_time: datetime.timedelta = datetime.timedelta(days=30)
 
 
 class Settings(BaseSettings):
     api_path: str = "/api/v1"
     activation_email_code_life_sec: int = 120
-    algorithm: str = HASH_ALGORITHM
     email_connection_config: ConnectionConfig = email_connection_config
-    jwt_token_life_time: datetime.timedelta = datetime.timedelta(days=7)
     auth_jwt: AuthJWT = AuthJWT()
 
 
