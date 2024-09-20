@@ -165,6 +165,7 @@ async def user_get_by_id(user_id: int, session: SessionDep, role_dep: security.A
     user_instance = await UserCRUD.get_user_by_field(session, schemas.UserJWTSchema, id=user_id)
     return user_instance[0]
 
+
 @user_router.put(AuthEndpoint.USER.value)
 async def user_update(user_data: schemas.UserUpdateSchema, session: SessionDep, role_dep: security.AdminRoleDep):
     await UserCRUD.update_user(session, user_data=user_data)
@@ -173,6 +174,7 @@ async def user_update(user_data: schemas.UserUpdateSchema, session: SessionDep, 
         status_code=200,
         content={"msg": "User has been updated"}
     )
+
 
 @user_router.delete(AuthEndpoint.USER.value + "/{user_id}")
 async def user_delete(user_id: int, session: SessionDep, role_dep: security.AdminRoleDep):
@@ -183,14 +185,17 @@ async def user_delete(user_id: int, session: SessionDep, role_dep: security.Admi
         content={"msg": "User has been deleted"}
     )
 
+
 @user_router.get(AuthEndpoint.USER.value)
 async def user_get_users(role_dep: security.AdminRoleDep, session: SessionDep, offset: conint(gt=0) = 1):
     return await UserCRUD.get_user_limited(session, offset=offset - 1, limit=10)
+
 
 @user_router.get(AuthEndpoint.ME.value)
 async def user_get_me(role_dep: security.UserRoleDep, session: SessionDep) -> schemas.UserBaseSchema:
     user_instance = await UserCRUD.get_user_by_field(session, schemas.UserBaseSchema, id=role_dep.id)
     return user_instance[0]
+
 
 @user_router.put(AuthEndpoint.ME.value)
 async def user_update_me(user_data: schemas.UserMeUpdateSchema, session: SessionDep, role_dep: security.UserRoleDep):
